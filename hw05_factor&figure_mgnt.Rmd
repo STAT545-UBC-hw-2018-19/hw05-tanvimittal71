@@ -1,0 +1,174 @@
+---
+title: "hw05_factor&figure_mgmnt"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### Load Packages:
+```{r}
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(gapminder))
+suppressPackageStartupMessages(library(forcats))
+suppressPackageStartupMessages(library(knitr))
+suppressPackageStartupMessages(library(scales))
+suppressPackageStartupMessages(library(plotly))
+
+```
+
+### Part 1: Factor Management
+
+First lets refresh our memory about how many observations and levels(for categorical variables) are there in gapminder data frame
+
+**Peeking into data**
+
+```{r data_explore}
+str(gapminder) 
+```
+Number of observations: 1704
+
+Number of Variables: 6
+
+Levels of continent: 5
+
+Levels of country: 142
+
+**Exploring Oceania**
+
+Let us see how much data does Oceania contribute.
+
+```{r}
+Oceania_data <- gapminder %>% 
+  filter(continent == "Oceania")
+dim(Oceania_data)
+knitr::kable(unique(Oceania_data$country))
+```
+
+So, Oceania has 24 observations and 2 countries
+
+**Dropping Oceania**
+
+```{r}
+gap_wo_oceania <- gapminder %>%
+    filter(!continent == "Oceania")
+levels(gap_wo_oceania$continent)
+str(gapminder)
+```
+
+
+As we can see in output of str() function, number of observations have been reduced to 1680. However, levels of continent and country are still the same due to the [stealthy nature of factors](http://stat545.com/block029_factors.html#dropping-unused-levels).
+
+**Dropping levels**
+```{r}
+gap_wo_oceania <- gapminder %>%
+    filter(!continent == "Oceania") %>% 
+    droplevels() #using droplevel() to drop all unused factors in data frame
+str(gap_wo_oceania)
+```
+
+Here Oceania has been dropped along with the unused levels
+
+**Reodering the data**
+
+Next we will reorder the levels based on lifeExp(quantitative variable) and see the difference between plot obtained from raw data and arranged data.
+
+```{r reorder}
+#rearranging continent levels based on mean of lifeExp
+gap_arrange <- gap_wo_oceania %>% 
+  mutate(continent = fct_reorder(continent,lifeExp,mean)) #fct_reorder2 to be used in line charts and color aesthetic
+#plot of raw data
+ggplot(gap_wo_oceania,aes(continent,lifeExp)) +
+  geom_boxplot() +
+  labs(title = "LifeExp Summary for continents")
+#plot of data arranged by mean lifeExp
+ggplot(gap_arrange,aes(continent,lifeExp)) +
+  geom_boxplot() +
+  labs(title = "LifeExp Summary for continents(arranged by mean)")
+  
+```
+
+As we can see above by rearranging the levels by meam, boxplot looks better as we reduce the randomness.
+
+### Part 2: File I/O
+
+**Data**
+
+First I will take take a subset of data and fiddle with it before writing to the file
+
+```{r creating_subset}
+gap_subset <- gapminder %>% 
+  filter(year == 2007, lifeExp > 60) %>%
+  arrange(lifeExp) %>%
+  droplevels() #dropping unused levels
+knitr::kable(head(gap_subset))
+```
+
+**Writing CSV**
+```{r write_csv}
+write_csv(gap_subset,"gapminder_filtered.csv")
+```
+
+**Reading CSV**
+```{r read_csv}
+gap_sub_csv <- read_csv("gapminder_filtered.csv")
+knitr::kable(head(gap_sub_csv))
+```
+
+As we can see above order of the data has been maintained while writing and reading. However, factor variables(country and continent) have been converted to character while reading as mentioned in parse message above.
+
+### Part 3: Visualization design
+
+Graph at earlier stage:
+
+```{r plot}
+gap_wo_oceania %>% #using data without oceania
+  ggplot(aes(gdpPercap, pop)) +
+  geom_point() +
+  scale_x_log10() +
+  scale_y_log10() +
+  facet_wrap(~continent)
+
+```
+
+Modifying the graph:
+
+```{r plot_modify}
+(p <- gap_wo_oceania %>%
+   ggplot(aes(gdpPercap, pop)) +
+   geom_point(aes(colour=lifeExp), alpha=0.2) +
+   #specification for x-axis
+   scale_x_log10(labels=dollar_format()) +
+   scale_color_viridis_c(
+     trans   = "log10",
+     breaks  = 10^(1:10),
+     labels  = comma_format()
+     ) +
+   facet_wrap(~ continent) +
+   #specification for y-axis
+   scale_y_log10(labels=dollar_format(),
+     breaks  = 10^(1:1000)
+     )+
+   theme_minimal() +
+   labs(title="gdpPerCap vs lifeExp with population distribution"))
+```
+
+As compared to the earlier graph, this plot has more information about the data as it colors the graph based on population. Using the visualization techniques discussed this week, we can make the graphs more visually appealing.
+
+Here is the same plot using plotly
+
+```{r}
+ggplotly(p)
+```
+
+Using plotly, we get an interactive graph with hover options and zoom in-out features. Also, as we saw in class we can have 3D plots using plotly.
+
+### Part 4: Writing figures to file
+
+```{r}
+ggsave(filename="plot.jpeg", width = 10, height = 10, units = "cm", device = "jpeg")
+```
+If we do not explicitly give the plot object name ggsave will save the most recent plot. To save an older plot (..plot=) argument can be used
+
+Here is the saved image:
+![Image](plot.jpeg)
